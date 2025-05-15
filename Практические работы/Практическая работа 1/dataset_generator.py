@@ -420,21 +420,3 @@ class DatasetGenerator:
                 return rows
 
         return rows
-
-
-dataset_generator = DatasetGenerator(
-    "custom_teremok.json",
-    min_order_items=2,
-    max_order_items=5,
-    max_order_price=1000,
-    allow_duplicates=False,
-    mode=GenerationMode.FIXED_ROWS,
-    num_rows=10
-)
-daraset = dataset_generator.generate_dataset()
-print(daraset)
-
-for idx, row in daraset.iterrows():
-    non_zero = row[row > 0]
-    print(f"Order {idx+1}:")
-    print(non_zero.to_dict())
