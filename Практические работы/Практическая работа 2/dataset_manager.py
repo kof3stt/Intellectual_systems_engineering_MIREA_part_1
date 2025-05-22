@@ -1,10 +1,13 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 import seaborn as sns
 from pandas.plotting import scatter_matrix
 from sklearn.datasets import load_wine
+from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import silhouette_samples, silhouette_score
 from typing import Optional, Dict, Tuple, List
 from pandas import DataFrame, Series
 
@@ -364,6 +367,104 @@ class DatasetManager:
 
         print(f"Признак '{feature_name}' успешно удалён из набора данных.")
 
+    def visualize_elbow_method(self, k_range: range = range(1, 11)) -> None:
+        """
+        Реализует метод локтя для определения оптимального числа кластеров.
+
+        Для каждого k в заданном диапазоне вычисляется WCSS (within-cluster sum of squares).
+        Строится график зависимости WCSS от количества кластеров k.
+
+        Параметры:
+            k_range (range): Диапазон значений k (число кластеров) для анализа.
+
+        Исключения:
+            RuntimeError: если данные ещё не были предобработаны.
+        """
+        if self.scaled_features is None:
+            raise RuntimeError(
+                "Сначала вызовите preprocess(), чтобы получить масштабированные признаки."
+            )
+
+        wcss = []
+
+        for k in k_range:
+            kmeans = KMeans(n_clusters=k, random_state=42, n_init="auto")
+            kmeans.fit(self.scaled_features)
+            wcss.append(kmeans.inertia_)
+
+        plt.figure(figsize=(8, 5))
+        plt.plot(list(k_range), wcss, marker="o")
+        plt.title("Метод локтя: выбор числа кластеров")
+        plt.xlabel("Число кластеров (k)")
+        plt.ylabel("Сумма внутрикластерных расстояний (WCSS)")
+        plt.xticks(list(k_range))
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
+
+    def visualize_silhouette_analysis(self, n_clusters: int = 3) -> None:
+        """
+        Строит силуэтную диаграмму для оценки качества кластеризации методом k-средних.
+
+        Параметры:
+            n_clusters (int): Число кластеров для KMeans.
+
+        Исключения:
+            RuntimeError: если не были предобработаны признаки.
+        """
+        if self.scaled_features is None:
+            raise RuntimeError(
+                "Сначала вызовите preprocess(), чтобы получить масштабированные признаки."
+            )
+
+        X = self.scaled_features.values
+
+        kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init="auto")
+        cluster_labels = kmeans.fit_predict(X)
+
+        silhouette_avg = silhouette_score(X, cluster_labels)
+        sample_silhouette_values = silhouette_samples(X, cluster_labels)
+
+        fig, ax1 = plt.subplots(figsize=(10, 6))
+        y_lower = 10
+        for i in range(n_clusters):
+            ith_cluster_silhouette_values = sample_silhouette_values[
+                cluster_labels == i
+            ]
+            ith_cluster_silhouette_values.sort()
+
+            size_cluster_i = ith_cluster_silhouette_values.shape[0]
+            y_upper = y_lower + size_cluster_i
+
+            color = cm.nipy_spectral(float(i) / n_clusters)
+            ax1.fill_betweenx(
+                np.arange(y_lower, y_upper),
+                0,
+                ith_cluster_silhouette_values,
+                facecolor=color,
+                edgecolor=color,
+                alpha=0.7,
+            )
+
+            ax1.text(-0.05, y_lower + 0.5 * size_cluster_i, str(i))
+            y_lower = y_upper + 10
+
+        ax1.set_title(f"Силуэтная диаграмма для {n_clusters} кластеров")
+        ax1.set_xlabel("Коэффициент силуэта")
+        ax1.set_ylabel("Номер кластера")
+
+        ax1.axvline(
+            x=silhouette_avg,
+            color="red",
+            linestyle="--",
+            label=f"Среднее значение: {silhouette_avg:.2f}",
+        )
+        ax1.set_xlim([-0.1, 1.0])
+        ax1.set_yticks([])
+        ax1.legend()
+        plt.tight_layout()
+        plt.show()
+
 
 if __name__ == "__main__":
     manager = DatasetManager(source="sklearn")
@@ -388,5 +489,7 @@ if __name__ == "__main__":
     manager.preprocess()
 
     manager.remove_feature("total_phenols")
+    manager.visualize_elbow_method()
+    manager.visualize_silhouette_analysis()
 
     X_scaled, y = manager.get_preprocessed_data()
